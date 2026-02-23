@@ -1,0 +1,12 @@
+{
+  "name": "epoc-sync-provisioner",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Creates/updates Sync Gateway users for ePoc-mobile and returns credentials",
+  "main": "server.mjs",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  }
+}

@@ -1,13 +1,19 @@
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import { i18n } from '@/i18n';
+
 import App from './App.vue';
 import router from './router';
 
 import { Capacitor } from '@capacitor/core';
 import { IonicVue } from '@ionic/vue';
+
 import { useStorage } from '@/composables/useStorage';
 import VueMatomo from 'vue-matomo';
+
+import { initLearningSessionTracker } from '@/utils/sessionTracker';
+import { initLearningExportScheduler } from '@/utils/learningExport';
+import { initCouchbaseSync } from '@/utils/couchbaseSync';
 
 /* Core CSS required for Ionic components to work properly */
 import '@ionic/vue/css/core.css';
@@ -31,7 +37,6 @@ import '@ionic/vue/css/display.css';
  * For more info, please see:
  * https://ionicframework.com/docs/theming/dark-mode
  */
-
 /* @import '@ionic/vue/css/palettes/dark.always.css'; */
 /* @import '@ionic/vue/css/palettes/dark.class.css'; */
 import '@ionic/vue/css/palettes/dark.system.css';
@@ -40,41 +45,52 @@ import '@ionic/vue/css/palettes/dark.system.css';
 import './theme/variables.scss';
 
 if ('serviceWorker' in navigator && Capacitor.getPlatform() === 'web' && import.meta.env.VITE_APP_MODE !== 'preview') {
-    const registration = navigator.serviceWorker.register('/sw.js').then((registration) => {
-        console.log('ServiceWorker registered:', registration);
-        init();
-    }).catch((error) => {
-        console.error('ServiceWorker registration failed:', error);
+  navigator.serviceWorker
+    .register('/sw.js')
+    .then((registration) => {
+      // eslint-disable-next-line no-console
+      console.log('ServiceWorker registered:', registration);
+      init();
+    })
+    .catch((error) => {
+      // eslint-disable-next-line no-console
+      console.error('ServiceWorker registration failed:', error);
     });
 } else {
-    init();
+  init();
 }
 
 function init() {
-    const pinia = createPinia();
+  const pinia = createPinia();
 
-    const app = createApp(App)
-        .use(IonicVue, {
-            innerHTMLTemplatesEnabled: true,
-            swipeBackEnabled: false
-        })
-        .use(i18n)
-        .use(pinia)
-        .use(router)
+  const app = createApp(App)
+    .use(IonicVue, { innerHTMLTemplatesEnabled: true, swipeBackEnabled: false })
+    .use(i18n)
+    .use(pinia)
+    .use(router);
 
-    // Matomo setup NOT in development
-    app.use(VueMatomo, {
-        host: 'https://piwik.inria.fr',
-        siteId: 133,
-        enableLinkTracking: true,
-        debug: false,
-        // Disable auto-tracking to avoid scheme issues
-        router: null,
-        trackInitialView: false
-    });
+  // Matomo setup (disabled auto-tracking to avoid scheme issues)
+  // NOTE: Keep this outside `.use(router)` chain to avoid accidental chaining bugs.
+  app.use(VueMatomo, {
+    host: 'https://piwik.inria.fr',
+    siteId: 133,
+    enableLinkTracking: true,
+    debug: false,
+    router: null,
+    trackInitialView: false,
+  });
 
-    router.isReady().then(() => {
-        app.mount('#app');
-        useStorage();
-    });
+  router.isReady().then(async () => {
+    app.mount('#app');
+
+    // Initialize storage (Ionic Storage)
+    useStorage();
+
+    // Start Couchbase Lite sync (only if VITE_CBL_SYNC_URL is provided)
+    initCouchbaseSync().catch(() => null);
+
+    // Existing learning session tracking & export scheduler
+    initLearningSessionTracker();
+    initLearningExportScheduler();
+  });
 }

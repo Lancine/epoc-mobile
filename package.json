@@ -1,6 +1,6 @@
 {
   "name": "epoc-mobile",
-  "version": "2.0.3",
+  "version": "2.0.1",
   "author": "Inria Learning Lab",
   "homepage": "https://epoc.inria.fr",
   "scripts": {
@@ -39,7 +39,7 @@
     "@capacitor/screen-reader": "^7.0.2",
     "@capacitor/splash-screen": "^7.0.3",
     "@capacitor/status-bar": "^7.0.4",
-    "@epoc/capacitor-zip": "^0.1.2",
+    "@epoc/capacitor-zip": "^0.1.1",
     "@epoc/epoc-types": "^2.0.0-beta.25",
     "@ionic/cli": "^7.2.1",
     "@ionic/storage": "^3.0.6",
@@ -78,7 +78,8 @@
     "vue-i18n": "^11.1.12",
     "vue-matomo": "^4.2.0",
     "vue-router": "^4.2.0",
-    "vue-tsc": "^2.1.10"
+    "vue-tsc": "^2.1.10",
+    "@couchbase/lite-js": "^1.0.0"
   },
   "overrides": {
     "rollup": "4.44.0"

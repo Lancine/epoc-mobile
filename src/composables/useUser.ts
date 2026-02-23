@@ -1,31 +1,63 @@
-import { useStorage } from './useStorage';
-import { ref, Ref } from 'vue';
+import { computed, ref } from 'vue';
 
-export type User = {
-    firstname: string;
-    lastname: string;
+import type { User } from '@/types/user';
+import { useStorage } from '@/composables/useStorage';
+
+const DEFAULT_USER: User = {
+  username: '',
+  firstname: '',
+  lastname: '',
+  email: '',
+  learnerId: '',
 };
 
-const user: Ref<User | null> = ref(null);
-
 export function useUser() {
-    const { getValue, setValue } = useStorage();
+  const storageService = useStorage();
 
-    async function getUser() {
-        const userString = await getValue('user');
-        user.value = userString ? JSON.parse(userString) : null;
+  const user = ref<User | null>(null);
+  const userFetched = ref(false);
 
-        return user.value;
+  async function fetchUser() {
+    const storedUser = await storageService.getValue('user');
+
+    if (storedUser) {
+      try {
+        user.value = { ...DEFAULT_USER, ...JSON.parse(storedUser) };
+      } catch {
+        user.value = { ...DEFAULT_USER };
+      }
+    } else {
+      user.value = { ...DEFAULT_USER };
     }
 
-    async function setUser(userData: User | null) {
-        await setValue('user', JSON.stringify(userData));
-        user.value = userData;
-    }
+    userFetched.value = true;
+  }
 
-    return {
-        user,
-        getUser,
-        setUser,
-    };
+  async function setUser(newUser: User) {
+    user.value = { ...DEFAULT_USER, ...(user.value ?? {}), ...newUser };
+    await storageService.setValue('user', JSON.stringify(user.value));
+  }
+
+  async function resetUser() {
+    user.value = { ...DEFAULT_USER };
+    await storageService.setValue('user', JSON.stringify(user.value));
+  }
+
+  // Initialization
+  fetchUser();
+
+  return {
+    // State
+    user,
+    userFetched,
+
+    // Getters
+    getUser: computed(() => user.value),
+    getUserFetched: computed(() => userFetched.value),
+
+    // Actions
+    fetchUser,
+    setUser,
+    resetUser,
+  };
 }
