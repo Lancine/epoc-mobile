@@ -79,7 +79,8 @@
     "vue-matomo": "^4.2.0",
     "vue-router": "^4.2.0",
     "vue-tsc": "^2.1.10",
-    "@couchbase/lite-js": "^1.0.0"
+    "@couchbase/lite-js": "^1.0.0",
+    "@capacitor/share": "^7.0.0"
   },
   "overrides": {
     "rollup": "4.44.0"
