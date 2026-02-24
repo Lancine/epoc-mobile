@@ -1,0 +1,120 @@
+services:
+  couchbase:
+    image: couchbase:community-7.6.2
+    container_name: epoc-couchbase
+    restart: unless-stopped
+    ports:
+      - "8091:8091"     # UI / Admin
+    volumes:
+      - couchbase_data:/opt/couchbase/var
+    networks:
+      - epocnet
+    ulimits:
+      nofile:
+        soft: 40960
+        hard: 40960
+
+  sync-gateway:
+    image: couchbase/sync-gateway:3.3.3-community
+    container_name: epoc-sync-gateway
+    restart: unless-stopped
+    depends_on:
+      - couchbase
+    ports:
+      - "4984:4984"               # public API (Couchbase Lite replicator)
+      - "127.0.0.1:4985:4985"     # admin API (LOCAL ONLY)
+    volumes:
+      - ./sync-gateway.json:/tmp/config/sync-gateway.json:ro
+      - sg_data:/var/lib/sync_gateway
+    # Expose admin interface beyond localhost *inside the container* so provisioner/etl can reach it.
+    # (By default, 4985 is only bound to localhost inside the container.)
+    command: ["-interface", ":4984", "-adminInterface", ":4985", "/tmp/config/sync-gateway.json"]
+    networks:
+      - epocnet
+
+  provisioner:
+    build:
+      context: ./provisioner
+    container_name: epoc-provisioner
+    restart: unless-stopped
+    depends_on:
+      - sync-gateway
+    environment:
+      PORT: "8088"
+      SG_ADMIN_URL: "http://sync-gateway:4985"
+      SG_DB: "epoc-learning"
+      # Same salt as VITE_CBL_LEARNER_KEY_SALT (optional but recommended)
+      LEARNER_KEY_SALT: ${LEARNER_KEY_SALT:-}
+      # Comma-separated list
+      CORS_ORIGIN: ${PROVISIONER_CORS_ORIGIN:-http://localhost:8100,http://localhost:5173,http://localhost,capacitor://localhost,ionic://localhost}
+    ports:
+      - "8088:8088"
+    networks:
+      - epocnet
+
+  # Optional stack for pivot tables / BI (Metabase) using Postgres.
+  postgres:
+    image: postgres:16
+    container_name: epoc-analytics-postgres
+    restart: unless-stopped
+    profiles: ["analytics"]
+    environment:
+      POSTGRES_USER: ${PG_SUPERUSER:-epoc}
+      POSTGRES_PASSWORD: ${PG_SUPERPASS:-epoc}
+      POSTGRES_DB: ${PG_ANALYTICS_DB:-epoc_analytics}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./analytics/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - epocnet
+
+  etl:
+    build:
+      context: ./analytics
+    container_name: epoc-analytics-etl
+    restart: unless-stopped
+    profiles: ["analytics"]
+    depends_on:
+      - postgres
+      - sync-gateway
+    environment:
+      SG_ADMIN_URL: "http://sync-gateway:4985"
+      SG_DB: "epoc-learning"
+      POLL_SECONDS: ${ETL_POLL_SECONDS:-5}
+      PGHOST: "postgres"
+      PGPORT: "5432"
+      PGDATABASE: ${PG_ANALYTICS_DB:-epoc_analytics}
+      PGUSER: ${PG_SUPERUSER:-epoc}
+      PGPASSWORD: ${PG_SUPERPASS:-epoc}
+    networks:
+      - epocnet
+
+  metabase:
+    image: metabase/metabase:latest
+    container_name: epoc-metabase
+    restart: unless-stopped
+    profiles: ["analytics"]
+    depends_on:
+      - postgres
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_HOST: postgres
+      MB_DB_PORT: 5432
+      MB_DB_DBNAME: metabase
+      MB_DB_USER: metabase
+      MB_DB_PASS: metabase
+    ports:
+      - "3000:3000"
+    networks:
+      - epocnet
+
+volumes:
+  couchbase_data:
+  sg_data:
+  pg_data:
+
+networks:
+  epocnet:
+    driver: bridge

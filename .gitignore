@@ -48,3 +48,7 @@ screenshots/
 
 # Demo assets (used for editor preview)
 /public/assets/demo/
+
+# --- Allow committing Couchbase Mobile compose ---
+!infra/couchbase-mobile/docker-compose.yml
+!infra/couchbase-mobile/.env.example
