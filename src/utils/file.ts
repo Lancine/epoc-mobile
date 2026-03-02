@@ -1,6 +1,7 @@
 import { Zip } from '@epoc/capacitor-zip';
 import { Directory, Filesystem, FileInfo, Encoding } from '@capacitor/filesystem';
 import { FileTransfer, ProgressStatus } from '@capacitor/file-transfer';
+import { Capacitor } from '@capacitor/core';
 
 
 
@@ -119,21 +120,69 @@ export const download = async (
     filename: string,
     onProgress?: (progress: ProgressStatus) => void
 ): Promise<void> => {
-    try {
-        const fileUri = await Filesystem.getUri({
-            directory: Directory.LibraryNoCloud,
-            path: filename,
-        });
-        await FileTransfer.downloadFile({
-            url: url,
-            path: fileUri.uri,
-        });
-        if (onProgress) await FileTransfer.addListener('progress', onProgress);
-    } catch (error) {
-        console.error('Error downloading file:', error);
-        throw error;
+    const fileUri = await Filesystem.getUri({
+        directory: Directory.LibraryNoCloud,
+        path: filename,
+    });
+
+    const useBrowserFallback = Capacitor.getPlatform() === 'web';
+
+    if (!useBrowserFallback) {
+        try {
+            if (onProgress) {
+                await FileTransfer.addListener('progress', onProgress);
+            }
+            await FileTransfer.downloadFile({
+                url,
+                path: fileUri.uri,
+            });
+            return;
+        } catch (error) {
+            console.warn('Native download failed, trying web fallback:', error);
+        }
     }
+
+    await downloadWithFetch(url, filename, onProgress);
 };
+
+async function downloadWithFetch(
+    url: string,
+    filename: string,
+    onProgress?: (progress: ProgressStatus) => void
+): Promise<void> {
+    const response = await fetch(url);
+    if (!response.ok || !response.body) {
+        throw new Error(`Failed to download file: ${response.status} ${response.statusText}`);
+    }
+
+    const contentLength = Number(response.headers.get('content-length') || 0);
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let bytes = 0;
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!value) continue;
+        chunks.push(value);
+        bytes += value.length;
+        onProgress?.({ bytes, contentLength } as ProgressStatus);
+    }
+
+    const allBytes = new Uint8Array(bytes);
+    let offset = 0;
+    for (const chunk of chunks) {
+        allBytes.set(chunk, offset);
+        offset += chunk.length;
+    }
+
+    await Filesystem.writeFile({
+        path: filename,
+        data: arrayBufferToBase64(allBytes.buffer),
+        directory: Directory.LibraryNoCloud,
+        recursive: true,
+    });
+}
 
 export const deleteZip = async (filename: string): Promise<void> => {
     try {
