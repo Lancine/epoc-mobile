@@ -7,11 +7,12 @@ android {
     compileSdk 35
 
     defaultConfig {
-        applicationId 'ci.epro.geniia.technopedagogie.niveau1'
+        // Conserve l’identifiant de la version 2.1.0 défectueuse afin que l’APK 2.2.1 puisse la mettre à jour.
+        applicationId 'ci.epro.technopedagogie.niveau1'
         minSdk 23
         targetSdk 35
-        versionCode 210
-        versionName '2.1.0'
+        versionCode 20201
+        versionName '2.2.1'
     }
 
     buildTypes {
