@@ -40,11 +40,15 @@ public final class EproFileProvider extends ContentProvider {
     @Override
     public Cursor query(Uri uri, String[] projection, String selection,
                         String[] selectionArgs, String sortOrder) {
-        File file = resolve(uri);
         MatrixCursor cursor = new MatrixCursor(new String[]{
                 OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE
         });
-        cursor.addRow(new Object[]{file.getName(), file.length()});
+        try {
+            File file = resolve(uri);
+            cursor.addRow(new Object[]{file.getName(), file.length()});
+        } catch (FileNotFoundException ignored) {
+            // Empty cursor for an unavailable file.
+        }
         return cursor;
     }
 
