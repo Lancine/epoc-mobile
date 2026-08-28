@@ -42,7 +42,13 @@ jobs:
         working-directory: epro-apple-universal
         run: |
           set -euo pipefail
-          base64 --decode project_bundle.tar.gz.b64 | tar -xzf -
+          python3 - <<'PY'
+          import base64
+          from pathlib import Path
+          source = Path('project_bundle.tar.gz.b64')
+          Path('project_bundle.tar.gz').write_bytes(base64.b64decode(source.read_text()))
+          PY
+          tar -xzf project_bundle.tar.gz
           chmod +x scripts/*.sh
 
       - name: Generate icons and Xcode project
