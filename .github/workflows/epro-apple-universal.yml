@@ -146,6 +146,27 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent "$IOS_APP" \
             build-apple/output/EPro_Technopedagogie_iPhone_iPad_Simulator_v3.0.0.app.zip
 
+      - name: Build unsigned iPhone and iPad device package
+        shell: bash
+        working-directory: epro-apple-universal
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project EProApple.xcodeproj \
+            -scheme EProApple \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=NO \
+            -derivedDataPath build-apple/DerivedData-Device \
+            build
+          DEVICE_APP='build-apple/DerivedData-Device/Build/Products/Release-iphoneos/EProTechnopedagogie.app'
+          test -d "$DEVICE_APP"
+          rm -rf build-apple/ipa-staging
+          mkdir -p build-apple/ipa-staging/Payload
+          ditto "$DEVICE_APP" build-apple/ipa-staging/Payload/EProTechnopedagogie.app
+          (cd build-apple/ipa-staging && zip -qry ../output/EPro_Technopedagogie_iPhone_iPad_UNSIGNED_v3.0.0.ipa Payload)
+
       - name: Build Mac Catalyst application
         shell: bash
         working-directory: epro-apple-universal
