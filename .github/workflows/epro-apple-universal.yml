@@ -56,7 +56,7 @@ jobs:
         working-directory: epro-apple-universal
         run: |
           set -euo pipefail
-          ./scripts/prepare_icons.sh
+          SRCROOT="$PWD" ./scripts/prepare_icons.sh
           xcodegen generate
           xcodebuild -project EProApple.xcodeproj -list
 
