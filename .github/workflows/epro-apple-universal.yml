@@ -42,10 +42,11 @@ jobs:
         working-directory: epro-apple-universal
         run: |
           set -euo pipefail
+          cat project_bundle.part* > project_bundle.complete.b64
           python3 - <<'PY'
           import base64
           from pathlib import Path
-          source = Path('project_bundle.tar.gz.b64')
+          source = Path('project_bundle.complete.b64')
           Path('project_bundle.tar.gz').write_bytes(base64.b64decode(source.read_text()))
           PY
           tar -xzf project_bundle.tar.gz
