@@ -52,6 +52,50 @@ jobs:
           tar -xzf project_bundle.tar.gz
           chmod +x scripts/*.sh
 
+          # Replace the historical resource script with a platform-neutral version.
+          # This avoids invoking the Swift interpreter under an iPhone Simulator SDK.
+          cat > scripts/prepare_resources.sh <<'SCRIPT'
+          #!/bin/bash
+          set -euo pipefail
+          WEB_SOURCE="$SRCROOT/../epro-standalone-android/app/src/main/assets/www"
+          SERIAL_SOURCE="$SRCROOT/../epro-standalone-android/app/src/main/assets/serial_hash_prefixes.txt"
+          RESOURCE_ROOT="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH"
+          WEB_DEST="$RESOURCE_ROOT/www"
+
+          if [[ ! -d "$WEB_SOURCE" ]]; then
+            echo "Contenus pédagogiques introuvables : $WEB_SOURCE" >&2
+            exit 1
+          fi
+          if [[ ! -f "$SERIAL_SOURCE" ]]; then
+            echo "Empreintes de licences introuvables : $SERIAL_SOURCE" >&2
+            exit 1
+          fi
+
+          rm -rf "$WEB_DEST"
+          mkdir -p "$WEB_DEST"
+          ditto "$WEB_SOURCE" "$WEB_DEST"
+          cp "$SERIAL_SOURCE" "$RESOURCE_ROOT/serial_hash_prefixes.txt"
+          mkdir -p "$WEB_DEST/shared"
+          cp "$SRCROOT/scripts/activation-apple.js" "$WEB_DEST/shared/activation.js"
+
+          python3 - "$WEB_DEST" <<'PY'
+          from pathlib import Path
+          import sys
+          root = Path(sys.argv[1])
+          activation = root / 'activation.html'
+          index = root / 'index.html'
+          if activation.exists():
+              text = activation.read_text(encoding='utf-8')
+              text = text.replace('lié à ce poste Windows', 'lié à cet appareil Apple')
+              activation.write_text(text, encoding='utf-8')
+          if index.exists():
+              text = index.read_text(encoding='utf-8')
+              text = text.replace('Version 2.2.0', 'Version 3.0.0 · Apple Universal')
+              index.write_text(text, encoding='utf-8')
+          PY
+          SCRIPT
+          chmod +x scripts/prepare_resources.sh
+
       - name: Generate icons and Xcode project
         shell: bash
         working-directory: epro-apple-universal
