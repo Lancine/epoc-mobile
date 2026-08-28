@@ -1,0 +1,133 @@
+name: Build EPro Apple Universal
+
+on:
+  push:
+    branches:
+      - epro-apple-universal-v3.0.0
+    paths:
+      - 'epro-apple-universal/**'
+      - 'epro-standalone-android/app/src/main/assets/**'
+      - '.github/workflows/epro-apple-universal.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode and display environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          sw_vers
+          uname -m
+
+      - name: Install XcodeGen
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install xcodegen
+          xcodegen --version
+
+      - name: Unpack Apple project source
+        shell: bash
+        working-directory: epro-apple-universal
+        run: |
+          set -euo pipefail
+          base64 --decode project_bundle.tar.gz.b64 | tar -xzf -
+          chmod +x scripts/*.sh
+
+      - name: Generate icons and Xcode project
+        shell: bash
+        working-directory: epro-apple-universal
+        run: |
+          set -euo pipefail
+          ./scripts/prepare_icons.sh
+          xcodegen generate
+          xcodebuild -project EProApple.xcodeproj -list
+
+      - name: Build iPhone and iPad simulator application
+        shell: bash
+        working-directory: epro-apple-universal
+        run: |
+          set -euo pipefail
+          rm -rf build-apple
+          mkdir -p build-apple/output
+          xcodebuild \
+            -project EProApple.xcodeproj \
+            -scheme EProApple \
+            -configuration Release \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=NO \
+            -derivedDataPath build-apple/DerivedData-iOS \
+            build
+          IOS_APP='build-apple/DerivedData-iOS/Build/Products/Release-iphonesimulator/EProTechnopedagogie.app'
+          test -d "$IOS_APP"
+          ditto -c -k --sequesterRsrc --keepParent "$IOS_APP" \
+            build-apple/output/EPro_Technopedagogie_iPhone_iPad_Simulator_v3.0.0.app.zip
+
+      - name: Build Mac Catalyst application
+        shell: bash
+        working-directory: epro-apple-universal
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project EProApple.xcodeproj \
+            -scheme EProApple \
+            -configuration Release \
+            -destination 'generic/platform=macOS,variant=Mac Catalyst' \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=NO \
+            -derivedDataPath build-apple/DerivedData-Mac \
+            build
+          MAC_APP='build-apple/DerivedData-Mac/Build/Products/Release-maccatalyst/EProTechnopedagogie.app'
+          test -d "$MAC_APP"
+          codesign --force --deep --sign - "$MAC_APP"
+          codesign --verify --deep --strict "$MAC_APP"
+          ditto -c -k --sequesterRsrc --keepParent "$MAC_APP" \
+            build-apple/output/EPro_Technopedagogie_Mac_Catalyst_v3.0.0.app.zip
+
+      - name: Produce source package and validation report
+        shell: bash
+        working-directory: epro-apple-universal
+        run: |
+          set -euo pipefail
+          OUT='build-apple/output'
+          {
+            echo 'EPro Technopédagogie — Apple Universal 3.0.0'
+            echo
+            xcodebuild -version
+            echo
+            echo 'Targets: iPhone, iPad et Mac Catalyst'
+            echo 'Bundle ID proposé: ci.epro.technopedagogie.niveau1.apple'
+            echo 'Activation: Trousseau Apple + 200 empreintes de licences existantes'
+            echo 'Contenus: intégralement embarqués, sans localhost ni serveur local'
+            echo
+            echo 'L’application iOS Simulator n’est pas installable sur un iPhone physique.'
+            echo 'La distribution sur appareil réel exige une signature et un profil Apple.'
+          } > "$OUT/Rapport_build_Apple_v3.0.0.txt"
+          rsync -a \
+            --exclude 'build-apple' \
+            --exclude '.DS_Store' \
+            ./ build-apple/EProAppleSource/
+          ditto -c -k --sequesterRsrc --keepParent build-apple/EProAppleSource \
+            "$OUT/EPro_Technopedagogie_Apple_Universal_Source_v3.0.0.zip"
+          shasum -a 256 "$OUT"/*.zip > "$OUT/SHA256SUMS.txt"
+          ls -lah "$OUT"
+
+      - name: Upload Apple builds
+        uses: actions/upload-artifact@v4
+        with:
+          name: EPro-Apple-Universal-v3.0.0
+          path: epro-apple-universal/build-apple/output
+          retention-days: 30
+          if-no-files-found: error
