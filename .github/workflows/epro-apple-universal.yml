@@ -52,6 +52,20 @@ jobs:
           tar -xzf project_bundle.tar.gz
           chmod +x scripts/*.sh
 
+          # Keep the iOS 15 deployment target while avoiding an iOS 16-only modifier.
+          python3 - <<'PY'
+          from pathlib import Path
+          source = Path('EProApple/EProRootView.swift')
+          text = source.read_text(encoding='utf-8')
+          text = text.replace(
+              'Label("Réessayer", systemImage: "arrow.clockwise")\n'
+              '                            .fontWeight(.semibold)',
+              'Label("Réessayer", systemImage: "arrow.clockwise")\n'
+              '                            .font(.body.weight(.semibold))'
+          )
+          source.write_text(text, encoding='utf-8')
+          PY
+
           # Replace the historical resource script with a platform-neutral version.
           cat > scripts/prepare_resources.sh <<'SCRIPT'
           #!/bin/bash
